@@ -49,9 +49,9 @@ def test_image_date_priority_and_fallback(tmp_path, monkeypatch):
     for key, value in {'LLM_BASE_URL':'https://example.test/v1','LLM_API_KEY':'test','LLM_MODEL':'test'}.items():
         monkeypatch.setenv(key, value)
     rows = [
-        {'name':'菠菜', 'received_date':'2026-11-02', 'sale_date':'2026-11-01', 'shelf_life_days':3},
-        {'name':'牛奶', 'received_date':None, 'sale_date':'2026-11-03', 'shelf_life_days':5},
-        {'name':'鸡蛋', 'received_date':'invalid', 'sale_date':None, 'shelf_life_days':7},
+        {'name':'菠菜', 'received_date':'2026-11-02', 'sale_date':'2026-11-01', 'storage':'冷藏', 'shelf_life_days':3},
+        {'name':'牛奶', 'received_date':None, 'sale_date':'2026-11-03', 'storage':'冷冻', 'shelf_life_days':5},
+        {'name':'鸡蛋', 'received_date':'invalid', 'sale_date':None, 'storage':'未知', 'shelf_life_days':7},
         {'name':'无效估算', 'shelf_life_days':'unknown'},
     ]
     async def fake_post(self, *args, **kwargs):
@@ -66,5 +66,6 @@ def test_image_date_priority_and_fallback(tmp_path, monkeypatch):
             ('2026-11-03','2026-11-08','sale_date'),
             ('2026-11-10','2026-11-17','upload_date'),
         ]
+        assert [(x['storage'], x['storage_source']) for x in items] == [('冷藏','model'), ('冷冻','model'), ('冷藏','default')]
         manual = client.post('/api/suggest', json={'name':'菠菜','delivered':'2026-11-08','storage':'冷藏'}).json()['items'][0]
         assert (manual['delivered'], manual['expires'], manual['date_source']) == ('2026-11-08','2026-11-11','manual')

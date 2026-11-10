@@ -132,7 +132,7 @@ def restore_item(event_id: int):
 async def suggest(data: Suggestion):
     key, base, model = (os.getenv('LLM_API_KEY', ''), os.getenv('LLM_BASE_URL', '').rstrip('/'), os.getenv('LLM_MODEL', ''))
     if not all((key, base, model)): raise HTTPException(400, '请先配置 LLM_BASE_URL、LLM_API_KEY 和 LLM_MODEL')
-    prompt = f'你是食材管理助手。只返回 JSON 对象 {{"items":[{{"name":"食材名称","quantity":"数量","received_date":"YYYY-MM-DD或null","sale_date":"YYYY-MM-DD或null","shelf_life_days":整数}}]}}。逐项识别图片里明确标注的签收日期和发售日期；订单级日期适用于该订单中的所有食材，逐项填写；没有完整明确的日期时返回 null，不要编造或将其他日期当作签收日期或发售日期。按{data.storage}储存估算保守的一般可存放天数 shelf_life_days（非负整数），不要声称保证安全。识别不确定的名称照实填写，排除非食材。'
+    prompt = f'你是食材管理助手。只返回 JSON 对象 {{"items":[{{"name":"食材名称","quantity":"数量","received_date":"YYYY-MM-DD或null","sale_date":"YYYY-MM-DD或null","storage":"冷藏或冷冻或常温或null","shelf_life_days":整数}}]}}。逐项识别图片里明确标注的签收日期和发售日期；订单级日期适用于该订单中的所有食材，逐项填写；没有完整明确的日期时返回 null，不要编造或将其他日期当作签收日期或发售日期。逐项识别包装或商品信息中明确标示的储存方式，只能返回冷藏、冷冻、常温；未标明时根据食材合理推测，无法判断时返回 null 并以用户选定的{data.storage}为默认。按该项最终储存方式估算保守的一般可存放天数 shelf_life_days（非负整数），不要声称保证安全。识别不确定的名称照实填写，排除非食材。'
     content = [{'type': 'text', 'text': prompt}]
     if data.image:
         try:
@@ -168,8 +168,11 @@ async def suggest(data: Suggestion):
                             continue
                         base_date, source = candidate, label
                         break
-                item = Item(name=row['name'], quantity=str(row.get('quantity') or ''), storage=data.storage, delivered=base_date, expires=base_date + timedelta(days=shelf_life), estimated=True).model_dump(mode='json')
+                recognized_storage = row.get('storage')
+                inferred = isinstance(recognized_storage, str) and recognized_storage in ('冷藏', '冷冻', '常温')
+                item = Item(name=row['name'], quantity=str(row.get('quantity') or ''), storage=recognized_storage if inferred else data.storage, delivered=base_date, expires=base_date + timedelta(days=shelf_life), estimated=True).model_dump(mode='json')
                 item['date_source'] = source
+                item['storage_source'] = 'model' if inferred else 'default'
                 items.append(item)
             except (ValueError, KeyError, TypeError, OverflowError): continue
         return {'items': items}

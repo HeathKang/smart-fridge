@@ -56,3 +56,7 @@ SQLite 架构通过 `PRAGMA user_version` 管理。首次启动会识别现有 M
 ## 本地开发
 
 安装 Python 3.11+、uv 和 Node.js。运行 `uv sync`，然后 `npm ci --prefix frontend`、`npm run build --prefix frontend`，最后运行 `uv run uvicorn app.server:app --host 0.0.0.0 --port 8100`。服务读取根目录 `.env`；未配置模型时手动录入仍可用。前端开发可运行 `npm run dev --prefix frontend`，API 代理至 8100。运行 `uv run python -m pytest -q` 执行测试。
+
+## 第三方图标
+
+食材图标使用 [Twemoji](https://github.com/jdecked/twemoji)，图形版权属于 Twitter, Inc. 和其他贡献者，采用 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 许可；通过 [@twemoji/svg](https://github.com/boywithkeyboard/twemoji_svg) 打包使用。操作图标使用 Ant Design Icons。
