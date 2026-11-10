@@ -4,12 +4,11 @@
 
 ## 发布和部署
 
-推送 `main` 后，GitHub Actions 测试后构建 `linux/amd64` 镜像并发布至 GHCR，标签为完整提交 SHA。部署不会自动发生。工作流尚需推送到 GitHub 后运行一次才能产生镜像；包的可见性和访问权限由 GitHub 配置。私有镜像需要在 NAS 使用具有该包读取权限的凭据执行 `docker login ghcr.io`，不要将凭据写入仓库。QNAP 的 CPU 架构可通过 `uname -m` 确认：`x86_64` 对应 amd64。
+推送 `main` 后，GitHub Actions 测试后构建 `linux/amd64` 镜像并发布至 GHCR，标签包含完整提交 SHA；仅当该提交仍是 main 最新提交时，同步更新 `latest`。部署不会自动发生。包的可见性和访问权限由 GitHub 配置。私有镜像需要在 NAS 使用具有该包读取权限的凭据执行 `docker login ghcr.io`，不要将凭据写入仓库。QNAP 的 CPU 架构可通过 `uname -m` 确认：`x86_64` 对应 amd64。
 
-首次安装，在 NAS 上将仓库检出到固定目录，确认 Docker Compose 可用；复制 `.env.example` 为 `.env`，填入模型地址、密钥和支持图片输入的模型名称。以下版本应替换为 GitHub Actions 成功发布的完整 40 位提交 SHA：
+首次安装，在 NAS 上将仓库检出到固定目录，确认 Docker Compose 可用；复制 `.env.example` 为 `.env`，填入模型地址、密钥和支持图片输入的模型名称。默认使用最新成功发布的 `latest` 镜像：
 
 ```sh
-export FRIDGE_IMAGE=ghcr.io/heathkang/smart-fridge:完整提交SHA
 docker compose pull fridge
 docker compose up -d
 ```
@@ -18,18 +17,19 @@ docker compose up -d
 
 ### 手动更新
 
-保持原部署目录、项目名和 `.env`，取得成功发布的完整提交 SHA：
+保持原部署目录、项目名和 `.env`，拉取并更新到 `latest`：
 
 ```sh
-export FRIDGE_IMAGE=ghcr.io/heathkang/smart-fridge:完整提交SHA
 ./scripts/update.sh
 ```
+
+需要指定固定版本时，可在运行脚本前设置 `FRIDGE_IMAGE=ghcr.io/heathkang/smart-fridge:<完整提交SHA>` 并导出。`latest` 会随发布变化；更新脚本在拉取后固定本次实际镜像 ID，记录前后版本。
 
 脚本只支持已有容器正在运行的更新：先拉取新镜像，再使用 SQLite 在线备份和完整性检查，记录旧镜像 ID 和备份路径，然后替换容器并等待健康检查。任何失败都停止并提示检查；不会自动回滚或覆盖数据库。`.deploy-state/` 保存恢复所需信息，`.deploy-lock/` 防止并发更新；中断后若锁目录残留，确认没有其他更新运行后再移除。
 
 ### 备份与恢复
 
-默认将备份写入部署目录的 `backups/`；可设置 `FRIDGE_BACKUP_DIR` 为 NAS 本地路径。升级前备份只是第一层保护，还应定期备份到独立设备或位置并定期验证恢复。备份含家庭数据，注意访问权限。以下命令创建一份带唯一名称、不会覆盖已有文件的在线备份（保持 `FRIDGE_IMAGE` 指向可用镜像）：
+默认将备份写入部署目录的 `backups/`；可设置 `FRIDGE_BACKUP_DIR` 为 NAS 本地路径。升级前备份只是第一层保护，还应定期备份到独立设备或位置并定期验证恢复。备份含家庭数据，注意访问权限。以下命令创建一份带唯一名称、不会覆盖已有文件的在线备份（默认使用 `latest`；也可以设置 `FRIDGE_IMAGE` 指定可用镜像）：
 
 ```sh
 docker compose run --rm --no-deps --entrypoint python fridge -m app.backup /data/fridge.db /backups/manual-$(date -u +%Y%m%dT%H%M%S).sqlite
@@ -37,7 +37,7 @@ docker compose run --rm --no-deps --entrypoint python fridge -m app.backup /data
 
 可在 QNAP 计划任务中定期运行以上命令，并设置备份清理策略；目前没有自动清理或异地复制。应定期在独立卷中验证备份可打开、完整且数据正确。
 
-恢复会丢失备份之后的写入，先确认影响。`FRIDGE_IMAGE` 必须指向包含恢复工具的新镜像，备份文件必须在 `FRIDGE_BACKUP_DIR`（默认 `backups/`）中：
+恢复会丢失备份之后的写入，先确认影响。默认使用 `latest`；若指定 `FRIDGE_IMAGE`，它必须指向包含恢复工具的镜像，备份文件必须在 `FRIDGE_BACKUP_DIR`（默认 `backups/`）中：
 
 ```sh
 ./scripts/restore.sh 备份文件名.sqlite --confirm-data-loss

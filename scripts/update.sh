@@ -2,11 +2,14 @@
 # Run from the deployment directory. Never automatically restore a database.
 set -eu
 cd "$(dirname "$0")/.."
-: "${FRIDGE_IMAGE:?Set FRIDGE_IMAGE to the new immutable SHA-tagged image}"
+FRIDGE_IMAGE=${FRIDGE_IMAGE:-ghcr.io/heathkang/smart-fridge:latest}
 case "$FRIDGE_IMAGE" in
-  ghcr.io/heathkang/smart-fridge:*) tag=${FRIDGE_IMAGE##*:}; case "$tag" in *[!0-9a-f]*|'') echo 'Use a full 40-character commit SHA tag.' >&2; exit 1;; esac; [ "${#tag}" -eq 40 ] || { echo 'Use a full 40-character commit SHA tag.' >&2; exit 1; } ;;
-  *) echo 'Use ghcr.io/heathkang/smart-fridge:<40-character commit SHA>.' >&2; exit 1;;
+  ghcr.io/heathkang/smart-fridge:latest) ;;
+  ghcr.io/heathkang/smart-fridge:*) tag=${FRIDGE_IMAGE##*:}; case "$tag" in *[!0-9a-f]*|'') echo 'Use latest or a full 40-character commit SHA tag.' >&2; exit 1;; esac; [ "${#tag}" -eq 40 ] || { echo 'Use latest or a full 40-character commit SHA tag.' >&2; exit 1; } ;;
+  *) echo 'Use the latest or a SHA-tagged smart-fridge image.' >&2; exit 1;;
 esac
+export FRIDGE_IMAGE
+requested_image=$FRIDGE_IMAGE
 mkdir -p .deploy-state
 if ! mkdir .deploy-lock 2>/dev/null; then echo 'Another update is running, or a stale .deploy-lock needs inspection.' >&2; exit 1; fi
 trap 'rmdir .deploy-lock' EXIT
@@ -16,13 +19,16 @@ container=$(docker compose ps -q fridge)
 [ "$(docker inspect -f '{{.State.Running}}' "$container")" = true ] || { echo 'Existing service is not running; investigate before updating.' >&2; exit 1; }
 old_image=$(docker inspect -f '{{.Image}}' "$container")
 docker compose pull fridge
+# Pin the pulled image for both backup and deployment even if latest changes.
+FRIDGE_IMAGE=$(docker image inspect -f '{{.Id}}' "$requested_image")
+export FRIDGE_IMAGE
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
 backup_file="/backups/pre-update-${stamp}-$$.sqlite"
 docker compose run --rm --no-deps --entrypoint python fridge -m app.backup /data/fridge.db "$backup_file"
 printf '%s\n' "$old_image" > .deploy-state/previous-image-id
 printf '%s\n' "$backup_file" > .deploy-state/pre-update-backup
-printf '%s\n' "$FRIDGE_IMAGE" > .deploy-state/requested-image
-printf 'Previous image: %s\nBackup: %s\n' "$old_image" "$backup_file"
+printf '%s\n' "$requested_image" > .deploy-state/requested-image
+printf 'Previous image: %s\nNew image: %s\nBackup: %s\n' "$old_image" "$FRIDGE_IMAGE" "$backup_file"
 docker compose up -d --no-build --no-deps fridge
 container=$(docker compose ps -q fridge)
 count=0

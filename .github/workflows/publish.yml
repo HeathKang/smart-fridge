@@ -49,3 +49,14 @@ jobs:
           platforms: linux/amd64
           tags: |
             ghcr.io/heathkang/smart-fridge:${{ github.sha }}
+      - name: Promote current main to latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          current=$(gh api repos/${{ github.repository }}/git/ref/heads/main --jq .object.sha)
+          if [ "$current" = "$COMMIT_SHA" ]; then
+            docker buildx imagetools create -t ghcr.io/heathkang/smart-fridge:latest "ghcr.io/heathkang/smart-fridge:$COMMIT_SHA"
+          else
+            echo "Main has moved forward; leaving latest unchanged."
+          fi

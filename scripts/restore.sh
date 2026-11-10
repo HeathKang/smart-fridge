@@ -2,7 +2,8 @@
 # Explicitly restores an existing backup. Requires user to provide a backup basename.
 set -eu
 cd "$(dirname "$0")/.."
-: "${FRIDGE_IMAGE:?Set FRIDGE_IMAGE to the compatible image to run}"
+FRIDGE_IMAGE=${FRIDGE_IMAGE:-ghcr.io/heathkang/smart-fridge:latest}
+export FRIDGE_IMAGE
 [ "$#" -eq 2 ] && [ "$2" = '--confirm-data-loss' ] || { echo 'Usage: ./scripts/restore.sh BACKUP_FILENAME --confirm-data-loss' >&2; exit 1; }
 case "$1" in *[!a-zA-Z0-9._-]*|''|.|..) echo 'Use a backup filename from the backup directory, without a path.' >&2; exit 1;; esac
 if ! mkdir .deploy-lock 2>/dev/null; then echo 'An update or restore is running, or a stale .deploy-lock needs inspection.' >&2; exit 1; fi
