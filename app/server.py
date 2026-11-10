@@ -4,7 +4,7 @@ import json
 import os
 import sqlite3
 from contextlib import asynccontextmanager
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Literal
 
@@ -132,7 +132,7 @@ def restore_item(event_id: int):
 async def suggest(data: Suggestion):
     key, base, model = (os.getenv('LLM_API_KEY', ''), os.getenv('LLM_BASE_URL', '').rstrip('/'), os.getenv('LLM_MODEL', ''))
     if not all((key, base, model)): raise HTTPException(400, '请先配置 LLM_BASE_URL、LLM_API_KEY 和 LLM_MODEL')
-    prompt = f'你是食材管理助手。只返回 JSON 对象 {{"items":[{{"name":"食材名称","quantity":"数量","expires":"YYYY-MM-DD"}}]}}。以送达日 {data.delivered} 为起点，按{data.storage}储存估算保守的建议食用日期。不要声称保证安全；识别不确定的名称照实填写，排除非食材。'
+    prompt = f'你是食材管理助手。只返回 JSON 对象 {{"items":[{{"name":"食材名称","quantity":"数量","received_date":"YYYY-MM-DD或null","sale_date":"YYYY-MM-DD或null","shelf_life_days":整数}}]}}。逐项识别图片里明确标注的签收日期和发售日期；订单级日期适用于该订单中的所有食材，逐项填写；没有完整明确的日期时返回 null，不要编造或将其他日期当作签收日期或发售日期。按{data.storage}储存估算保守的一般可存放天数 shelf_life_days（非负整数），不要声称保证安全。识别不确定的名称照实填写，排除非食材。'
     content = [{'type': 'text', 'text': prompt}]
     if data.image:
         try:
@@ -153,8 +153,25 @@ async def suggest(data: Suggestion):
         items = []
         for row in result[:100]:
             try:
-                items.append(Item(name=row['name'], quantity=str(row.get('quantity') or ''), storage=data.storage, delivered=data.delivered, expires=row['expires'], estimated=True).model_dump(mode='json'))
-            except (ValueError, KeyError, TypeError): continue
+                if not isinstance(row, dict):
+                    continue
+                shelf_life = row.get('shelf_life_days')
+                if isinstance(shelf_life, bool) or not isinstance(shelf_life, int) or not 0 <= shelf_life <= 3650:
+                    continue
+                base_date = data.delivered
+                source = 'upload_date' if data.image else 'manual'
+                if data.image:
+                    for field, label in (('received_date', 'received_date'), ('sale_date', 'sale_date')):
+                        try:
+                            candidate = date.fromisoformat(row.get(field) or '')
+                        except (ValueError, TypeError):
+                            continue
+                        base_date, source = candidate, label
+                        break
+                item = Item(name=row['name'], quantity=str(row.get('quantity') or ''), storage=data.storage, delivered=base_date, expires=base_date + timedelta(days=shelf_life), estimated=True).model_dump(mode='json')
+                item['date_source'] = source
+                items.append(item)
+            except (ValueError, KeyError, TypeError, OverflowError): continue
         return {'items': items}
     except httpx.HTTPError: raise HTTPException(502, '无法连接模型服务，请检查配置或稍后重试')
     except (ValueError, KeyError, IndexError, TypeError): raise HTTPException(502, '模型响应无法处理，请检查模型兼容性或重试')
