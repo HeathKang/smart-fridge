@@ -14,6 +14,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
+from app.migrations import migrate
 
 ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / '.env')
@@ -29,10 +30,7 @@ def connect():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     DATA.mkdir(parents=True, exist_ok=True)
-    with connect() as db:
-        db.execute('CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY, name TEXT NOT NULL, quantity TEXT NOT NULL, storage TEXT NOT NULL, delivered TEXT NOT NULL, expires TEXT NOT NULL, estimated INTEGER NOT NULL DEFAULT 0)')
-        db.execute('CREATE TABLE IF NOT EXISTS handling_events (id INTEGER PRIMARY KEY, item_id INTEGER NOT NULL REFERENCES items(id), outcome TEXT NOT NULL, reason TEXT, handled_at TEXT NOT NULL, restored_at TEXT)')
-        db.execute('CREATE UNIQUE INDEX IF NOT EXISTS one_active_handling ON handling_events(item_id) WHERE restored_at IS NULL')
+    migrate(DB)
     yield
 
 app = FastAPI(title='鲜知 API', lifespan=lifespan)
@@ -73,6 +71,13 @@ class Suggestion(BaseModel):
     delivered: date
     storage: Storage = '冷藏'
     image: str | None = Field(default=None, max_length=8_000_100)
+
+@app.get('/api/health')
+def health():
+    with connect() as db:
+        db.execute('SELECT count(*) FROM items').fetchone()
+        db.execute('SELECT count(*) FROM handling_events').fetchone()
+    return {'status': 'ok'}
 
 @app.get('/api/items')
 def list_items():

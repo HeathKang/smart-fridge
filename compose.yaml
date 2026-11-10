@@ -1,12 +1,21 @@
 services:
   fridge:
-    build: .
+    image: ${FRIDGE_IMAGE:?Set FRIDGE_IMAGE to a published commit SHA image}
     ports:
       - "${FRIDGE_BIND:-0.0.0.0}:8100:8100"
     env_file:
       - .env
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
     volumes:
       - fridge-data:/data
+      - ${FRIDGE_BACKUP_DIR:-./backups}:/backups
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8100/api/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
 volumes:
   fridge-data:

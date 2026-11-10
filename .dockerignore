@@ -5,3 +5,14 @@ data
 frontend/node_modules
 frontend/dist
 __pycache__
+backups
+.deploy-state
+.deploy-lock
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.db
+*.sqlite
+*.sqlite3
