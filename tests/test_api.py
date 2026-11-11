@@ -69,3 +69,24 @@ def test_image_date_priority_and_fallback(tmp_path, monkeypatch):
         assert [(x['storage'], x['storage_source']) for x in items] == [('冷藏','model'), ('冷冻','model'), ('冷藏','default')]
         manual = client.post('/api/suggest', json={'name':'菠菜','delivered':'2026-11-08','storage':'冷藏'}).json()['items'][0]
         assert (manual['delivered'], manual['expires'], manual['date_source']) == ('2026-11-08','2026-11-11','manual')
+
+
+def test_meals_respects_inventory_and_dates(tmp_path, monkeypatch):
+    import httpx
+    import json
+    monkeypatch.setattr(server, 'DATA', tmp_path)
+    monkeypatch.setattr(server, 'DB', tmp_path / 'fridge.db')
+    for key in ('LLM_BASE_URL','LLM_API_KEY','LLM_MODEL'):
+        monkeypatch.setenv(key, 'https://example.test' if key == 'LLM_BASE_URL' else 'test')
+    async def fake_post(self, *args, **kwargs):
+        payload={'recipes':[{'name':'菠菜汤','item_ids':[1],'missing':['豆腐'],'steps':'煮熟'}, {'name':'错误','item_ids':[2],'missing':[],'steps':'做饭'}, {'name':'不存在','item_ids':[999],'missing':[],'steps':'做饭'}]}
+        return httpx.Response(200, request=httpx.Request('POST','https://example.test'),json={'choices':[{'message':{'content':json.dumps(payload)}}]})
+    monkeypatch.setattr(httpx.AsyncClient, 'post', fake_post)
+    with TestClient(server.app) as client:
+        item={'name':'菠菜','quantity':'1','storage':'冷藏','delivered':'2026-11-01','expires':'2026-11-15','estimated':True}
+        expired={**item,'name':'旧菜','expires':'2026-11-01'}
+        client.post('/api/items',json={'items':[item,expired]})
+        response=client.post('/api/meals',json={'today':'2026-11-11'})
+        assert response.status_code == 200
+        assert response.json()['season'] == '秋季'
+        assert response.json()['recipes'] == [{'name':'菠菜汤','ingredients':['菠菜'],'missing':['豆腐'],'steps':'煮熟'}]
