@@ -42,20 +42,21 @@ import icon40 from '@twemoji/svg/1f957.svg';
 
 // Twemoji SVG assets are bundled locally; matching does not use a model.
 const foodIcons: Array<[RegExp, string]> = [
-  [/鸡蛋|鸭蛋|鹌鹑蛋|鹅蛋/, icon0], [/牛奶|酸奶|奶酪|芝士/, icon1],
-  [/番茄|西红柿/, icon2], [/土豆|马铃薯/, icon3], [/红薯|地瓜|番薯/, icon4],
-  [/胡萝卜|红萝卜/, icon5], [/玉米/, icon6], [/黄瓜/, icon7], [/茄子/, icon8],
-  [/西兰花|花椰菜/, icon9], [/洋葱/, icon10], [/大蒜|蒜头/, icon11], [/辣椒|青椒|甜椒/, icon12],
-  [/蘑菇|香菇|金针菇|菌菇/, icon13], [/白菜|生菜|菠菜|青菜|油菜|芹菜|韭菜|莴苣|叶菜|卷心菜/, icon14],
+  [/鸡蛋|鸭蛋|鹌鹑蛋|鹅蛋|土鸡蛋|鲜鸡蛋|皮蛋|松花蛋|咸蛋/, icon0], [/牛奶|酸奶|奶酪|芝士|鲜奶|乳酪|巴氏奶|纯奶|奶粉/, icon1],
+  [/番茄|西红柿|圣女果|小番茄/, icon2], [/土豆|马铃薯/, icon3], [/红薯|地瓜|番薯/, icon4],
+  [/胡萝卜|红萝卜/, icon5], [/玉米/, icon6], [/黄瓜|青瓜|小青瓜/, icon7], [/茄子/, icon8],
+  [/西兰花|花椰菜|西蓝花|菜花|花菜/, icon9], [/洋葱/, icon10], [/大蒜|蒜头/, icon11], [/辣椒|青椒|甜椒/, icon12],
+  [/蘑菇|香菇|金针菇|菌菇/, icon13], [/白菜|生菜|菠菜|青菜|油菜|芹菜|韭菜|莴苣|叶菜|卷心菜|娃娃菜|小白菜|上海青|芥蓝|茼蒿|空心菜|包菜|苋菜/, icon14],
   [/苹果/, icon15], [/香蕉/, icon16], [/橙|橘|柑|桔/, icon17], [/柠檬/, icon18],
   [/草莓/, icon19], [/葡萄/, icon20], [/西瓜/, icon21], [/桃子|水蜜桃/, icon22], [/梨/, icon23],
   [/芒果/, icon24], [/菠萝|凤梨/, icon25], [/猕猴桃|奇异果/, icon26], [/牛油果/, icon27],
   [/虾/, icon28], [/螃蟹|蟹肉/, icon29], [/鱼|三文鱼/, icon30], [/贝|扇贝/, icon31],
-  [/鸡肉|鸡翅|鸡腿|鸡胸|整鸡/, icon32], [/牛肉|牛排|猪肉|排骨|羊肉|肉片|肉馅/, icon33],
-  [/面包|吐司/, icon34], [/米饭|大米/, icon35], [/面条|面粉|意面/, icon36], [/豆腐|豆干/, icon37],
+  [/鸡肉|鸡翅|鸡腿|鸡胸|整鸡|鸡柳|鸡块|鸡排|翅根|翅中/, icon32], [/牛肉|牛排|猪肉|排骨|羊肉|肉片|肉馅|五花肉|里脊|肥牛|肥羊|猪蹄|猪肚|瘦肉|肉末|猪肝/, icon33],
+  [/面包|吐司/, icon34], [/米饭|大米/, icon35], [/面条|面粉|意面/, icon36], [/豆腐|豆干|豆皮|腐竹|千张|豆制品/, icon37],
   [/水饺|饺子/, icon38], [/蜂蜜/, icon39],
 ];
 
 export function foodIcon(name: string): string {
-  return foodIcons.find(([pattern]) => pattern.test(name))?.[1] ?? icon40;
+  const normalized = name.normalize('NFKC').toLowerCase().replace(/\s+/g, '');
+  return foodIcons.find(([pattern]) => pattern.test(normalized))?.[1] ?? icon40;
 }
